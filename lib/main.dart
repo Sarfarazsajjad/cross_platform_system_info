@@ -6,9 +6,19 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:network_info_plus/network_info_plus.dart';
+
+// Sets a platform override for desktop to avoid exceptions. See
+// https://flutter.dev/desktop#target-platform-override for more info.
+void _enablePlatformOverrideForDesktop() {
+  if (!kIsWeb && (Platform.isWindows || Platform.isLinux)) {
+    debugDefaultTargetPlatformOverride = TargetPlatform.fuchsia;
+  }
+}
 
 void main() {
-  // runApp(MyApp());
+  _enablePlatformOverrideForDesktop();
+
   runZonedGuarded(() {
     runApp(MyApp());
   }, (dynamic error, dynamic stack) {
@@ -22,7 +32,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       home: DefaultTabController(
-        length: 3,
+        length: 4,
         child: Scaffold(
           appBar: AppBar(
             bottom: TabBar(
@@ -30,6 +40,7 @@ class MyApp extends StatelessWidget {
                 Tab(icon: Icon(Icons.battery_std)),
                 Tab(icon: Icon(Icons.device_unknown)),
                 Tab(icon: Icon(Icons.wifi)),
+                Tab(icon: Icon(Icons.network_wifi)),
               ],
             ),
             title: Text('System Info'),
@@ -39,6 +50,7 @@ class MyApp extends StatelessWidget {
               MyHomePage(),
               DeviceInfo(),
               ConnectivityPage(),
+              NetworkInfoPage(),
             ],
           ),
         ),
@@ -390,5 +402,90 @@ class _ConnectivityPageState extends State<ConnectivityPage> {
       body: Center(
           child: Text('Connection Status: ${_connectionStatus.toString()}')),
     );
+  }
+}
+
+class NetworkInfoPage extends StatefulWidget {
+  NetworkInfoPage({Key? key}) : super(key: key);
+
+  @override
+  _NetworkInfoPageState createState() => _NetworkInfoPageState();
+}
+
+class _NetworkInfoPageState extends State<NetworkInfoPage> {
+  String _connectionStatus = 'Unknown';
+  final NetworkInfo _networkInfo = NetworkInfo();
+
+  @override
+  void initState() {
+    super.initState();
+    _initNetworkInfo();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('NetworkInfo'),
+      ),
+      body: Center(child: Text('Connection Status: $_connectionStatus')),
+    );
+  }
+
+  Future<void> _initNetworkInfo() async {
+    String? wifiName, wifiBSSID, wifiIP;
+
+    try {
+      if (!kIsWeb && Platform.isIOS) {
+        var status = await _networkInfo.getLocationServiceAuthorization();
+        if (status == LocationAuthorizationStatus.notDetermined) {
+          status = await _networkInfo.requestLocationServiceAuthorization();
+        }
+        if (status == LocationAuthorizationStatus.authorizedAlways ||
+            status == LocationAuthorizationStatus.authorizedWhenInUse) {
+          wifiName = await _networkInfo.getWifiName();
+        } else {
+          wifiName = await _networkInfo.getWifiName();
+        }
+      } else {
+        wifiName = await _networkInfo.getWifiName();
+      }
+    } on PlatformException catch (e) {
+      print(e.toString());
+      wifiName = 'Failed to get Wifi Name';
+    }
+
+    try {
+      if (!kIsWeb && Platform.isIOS) {
+        var status = await _networkInfo.getLocationServiceAuthorization();
+        if (status == LocationAuthorizationStatus.notDetermined) {
+          status = await _networkInfo.requestLocationServiceAuthorization();
+        }
+        if (status == LocationAuthorizationStatus.authorizedAlways ||
+            status == LocationAuthorizationStatus.authorizedWhenInUse) {
+          wifiBSSID = await _networkInfo.getWifiBSSID();
+        } else {
+          wifiBSSID = await _networkInfo.getWifiBSSID();
+        }
+      } else {
+        wifiBSSID = await _networkInfo.getWifiBSSID();
+      }
+    } on PlatformException catch (e) {
+      print(e.toString());
+      wifiBSSID = 'Failed to get Wifi BSSID';
+    }
+
+    try {
+      wifiIP = await _networkInfo.getWifiIP();
+    } on PlatformException catch (e) {
+      print(e.toString());
+      wifiIP = 'Failed to get Wifi IP';
+    }
+
+    setState(() {
+      _connectionStatus = 'Wifi Name: $wifiName\n'
+          'Wifi BSSID: $wifiBSSID\n'
+          'Wifi IP: $wifiIP\n';
+    });
   }
 }
